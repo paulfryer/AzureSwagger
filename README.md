@@ -9,4 +9,4 @@ YAML will be created and will saved to your blob storage account in the containe
 
 You can then reference the YAML document from the Swagger Editor where you can then generate clients. If you use the default $root container the URL should look like this:
 
-https://{serviceName}.blob.windows.core.net/api.yaml
+https://{serviceName}.blob.core.windows.net/api.yaml
