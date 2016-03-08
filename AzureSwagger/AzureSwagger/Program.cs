@@ -54,6 +54,18 @@ namespace AzureSwagger
 
         private static void SaveYaml()
         {
+            var publicStorageContainerName = ConfigurationManager.AppSettings["PublicStorageContainerName"];
+            var apiContainer = blobClient.GetContainerReference(publicStorageContainerName);
+            apiContainer.CreateIfNotExists();
+            apiContainer.SetPermissions(new BlobContainerPermissions
+            {
+                PublicAccess = BlobContainerPublicAccessType.Blob
+            });
+
+            var blob = apiContainer.GetBlockBlobReference("api.yaml");
+            blob.Properties.ContentType = "application/yaml";
+
+            blob.UploadText(sb.ToString());
         }
 
         private static void BuildYaml()
