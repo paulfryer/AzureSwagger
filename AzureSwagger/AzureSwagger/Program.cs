@@ -51,6 +51,8 @@ namespace AzureSwagger
         {
             Initialize();
             SaveYaml("table.yaml", BuildTableYaml());
+
+            Console.ReadKey();
         }
 
 
@@ -68,6 +70,8 @@ namespace AzureSwagger
             blob.Properties.ContentType = "application/yaml";
 
             blob.UploadText(yaml);
+
+            Console.WriteLine(blob.Uri.AbsoluteUri);
         }
 
         private static string BuildTableYaml()
