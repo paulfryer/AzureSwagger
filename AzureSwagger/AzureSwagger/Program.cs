@@ -284,9 +284,11 @@ namespace AzureSwagger
 
         private static void AddTableParameters(string tableName, StringBuilder sb)
         {
+            sb.AppendLine("   tags:");
+            sb.AppendLine("    - " + tableName);
+
             sb.AppendLine("   parameters:");
-
-
+            
             sb.AppendLine("    - name: sv");
             sb.AppendLine("      description: Signed Version");
             sb.AppendLine("      required: true");
