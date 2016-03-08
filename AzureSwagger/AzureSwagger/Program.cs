@@ -42,17 +42,17 @@ namespace AzureSwagger
             {EdmType.Int64, "int64"},
         };
 
-        private static readonly StringBuilder sb = new StringBuilder();
+
         private static string storageAccountName;
 
-        private static void Main(string[] args)
+        private static void Main()
         {
             Initialize();
-            BuildYaml();
-            SaveYaml();
+            SaveYaml("table.yaml", BuildTableYaml());
         }
 
-        private static void SaveYaml()
+
+        private static void SaveYaml(string fileName, string yaml)
         {
             var publicStorageContainerName = ConfigurationManager.AppSettings["PublicStorageContainerName"];
             var apiContainer = blobClient.GetContainerReference(publicStorageContainerName);
@@ -62,16 +62,17 @@ namespace AzureSwagger
                 PublicAccess = BlobContainerPublicAccessType.Blob
             });
 
-            var blob = apiContainer.GetBlockBlobReference("api.yaml");
+            var blob = apiContainer.GetBlockBlobReference(fileName);
             blob.Properties.ContentType = "application/yaml";
 
-            blob.UploadText(sb.ToString());
+            blob.UploadText(yaml);
         }
 
-        private static void BuildYaml()
+        private static string BuildTableYaml()
         {
-            var infoTitle = storageAccountName;
-            var infoDescription = "The API for " + storageAccountName;
+            var sb = new StringBuilder();
+            var infoTitle = storageAccountName + " Table API";
+            var infoDescription = "API for the " + storageAccountName + " azure table storage service";
             const string infoVersion = "1.0.0";
             var host = tableClient.StorageUri.PrimaryUri.Host;
 
@@ -83,8 +84,10 @@ namespace AzureSwagger
             sb.AppendLine("host: " + host);
             sb.AppendLine("schemes:");
             sb.AppendLine(" - https");
+            sb.AppendLine(" - http");
             sb.AppendLine("produces:");
             sb.AppendLine(" - application/json");
+            sb.AppendLine(" - application/atom+xml");
             sb.AppendLine("paths:");
 
             foreach (var table in TableDescriptions)
@@ -92,7 +95,23 @@ namespace AzureSwagger
                 sb.AppendLine(" /" + table.Key + ":");
                 sb.AppendLine("  get:");
                 sb.AppendLine("   summary: Search the " + table.Key + " table.");
-                AddSasParamters(table.Key);
+                AddTableParameters(table.Key, sb);
+                sb.AppendLine("    - name: $top");
+                sb.AppendLine("      description: Top");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: integer");
+                sb.AppendLine("      default: 1000");
+                sb.AppendLine("    - name: $select");
+                sb.AppendLine("      description: Select");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: string");
+                sb.AppendLine("    - name: $filter");
+                sb.AppendLine("      description: Filter");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: string");
 
                 sb.AppendLine("   responses:");
                 sb.AppendLine("     200:");
@@ -101,8 +120,8 @@ namespace AzureSwagger
                 sb.AppendLine("         $ref: '#/definitions/" + table.Key + "response'");
 
                 sb.AppendLine("  post:");
-                sb.AppendLine("   summary: Insert a entity into the " + table.Key + " table.");
-                AddSasParamters(table.Key);
+                sb.AppendLine("   summary: Insert an entity into the " + table.Key + " table.");
+                AddTableParameters(table.Key, sb);
                 sb.AppendLine("    - name: body");
                 sb.AppendLine("      description: Body");
                 sb.AppendLine("      required: true");
@@ -125,9 +144,32 @@ namespace AzureSwagger
 
 
                 sb.AppendLine(" /" + table.Key + "(PartitionKey='{partitionKey}',RowKey='{rowKey}'):");
+                sb.AppendLine("  get:");
+                sb.AppendLine("   summary: Get an entity in the " + table.Key + " table.");
+                AddTableParameters(table.Key, sb);
+                sb.AppendLine("    - name: partitionKey");
+                sb.AppendLine("      description: Partition Key");
+                sb.AppendLine("      required: true");
+                sb.AppendLine("      in: path");
+                sb.AppendLine("      type: string");
+                sb.AppendLine("    - name: rowKey");
+                sb.AppendLine("      description: Row Key");
+                sb.AppendLine("      required: true");
+                sb.AppendLine("      in: path");
+                sb.AppendLine("      type: string");
+                sb.AppendLine("   responses:");
+                sb.AppendLine("     200:");
+                sb.AppendLine("       description: Success");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/" + table.Key + "'");
+                sb.AppendLine("     404:");
+                sb.AppendLine("       description: Not Found");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/errorresponse'");
+
                 sb.AppendLine("  put:");
-                sb.AppendLine("   summary: Replace a entity int the " + table.Key + " table.");
-                sb.AppendLine("   parameters:");
+                sb.AppendLine("   summary: Replace an entity in the " + table.Key + " table.");
+                AddTableParameters(table.Key, sb);
                 sb.AppendLine("    - name: partitionKey");
                 sb.AppendLine("      description: Partition Key");
                 sb.AppendLine("      required: true");
@@ -138,22 +180,19 @@ namespace AzureSwagger
                 sb.AppendLine("      required: true");
                 sb.AppendLine("      in: path");
                 sb.AppendLine("      type: string");
-                sb.AppendLine("  merge:");
-                sb.AppendLine("   summary: Merge a entity int the " + table.Key + " table.");
-                sb.AppendLine("   parameters:");
-                sb.AppendLine("    - name: partitionKey");
-                sb.AppendLine("      description: Partition Key");
+                sb.AppendLine("    - name: body");
+                sb.AppendLine("      description: Body");
                 sb.AppendLine("      required: true");
-                sb.AppendLine("      in: path");
-                sb.AppendLine("      type: string");
-                sb.AppendLine("    - name: rowKey");
-                sb.AppendLine("      description: Row Key");
-                sb.AppendLine("      required: true");
-                sb.AppendLine("      in: path");
-                sb.AppendLine("      type: string");
+                sb.AppendLine("      in: body");
+                sb.AppendLine("      schema:");
+                sb.AppendLine("        $ref: '#/definitions/" + table.Key + "'");
+                sb.AppendLine("   responses:");
+                sb.AppendLine("     204:");
+                sb.AppendLine("       description: No Content");
+
                 sb.AppendLine("  delete:");
-                sb.AppendLine("   summary: Delete a entity int the " + table.Key + " table.");
-                sb.AppendLine("   parameters:");
+                sb.AppendLine("   summary: Delete an entity from the " + table.Key + " table.");
+                AddTableParameters(table.Key, sb);
                 sb.AppendLine("    - name: partitionKey");
                 sb.AppendLine("      description: Partition Key");
                 sb.AppendLine("      required: true");
@@ -164,6 +203,23 @@ namespace AzureSwagger
                 sb.AppendLine("      required: true");
                 sb.AppendLine("      in: path");
                 sb.AppendLine("      type: string");
+                sb.AppendLine("    - name: If-Match");
+                sb.AppendLine("      description: If-Match");
+                sb.AppendLine("      required: true");
+                sb.AppendLine("      in: header");
+                sb.AppendLine("      type: string");
+                sb.AppendLine("      default: '*'");
+                sb.AppendLine("   responses:");
+                sb.AppendLine("     204:");
+                sb.AppendLine("       description: No Content");
+                sb.AppendLine("     400:");
+                sb.AppendLine("       description: Bad Request");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/errorresponse'");
+                sb.AppendLine("     404:");
+                sb.AppendLine("       description: Not Found");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/errorresponse'");
             }
 
             sb.AppendLine("definitions:");
@@ -220,11 +276,21 @@ namespace AzureSwagger
             sb.AppendLine("        type: string");
             sb.AppendLine("      value:");
             sb.AppendLine("        type: string");
+
+            return sb.ToString();
         }
 
-        private static void AddSasParamters(string tableName)
+        private static void AddTableParameters(string tableName, StringBuilder sb)
         {
             sb.AppendLine("   parameters:");
+
+
+            sb.AppendLine("    - name: sv");
+            sb.AppendLine("      description: Signed Version");
+            sb.AppendLine("      required: true");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+            sb.AppendLine("      default: '2015-02-21'");
 
             sb.AppendLine("    - name: tn");
             sb.AppendLine("      description: Table Name");
@@ -232,19 +298,70 @@ namespace AzureSwagger
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
             sb.AppendLine("      default: " + tableName);
-            sb.AppendLine("    - name: sv");
-            sb.AppendLine("      description: Service Version");
+
+            sb.AppendLine("    - name: st");
+            sb.AppendLine("      description: Signed Start");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+            sb.AppendLine("      default: '2000-01-01T00:00:00Z'");
+
+            sb.AppendLine("    - name: se");
+            sb.AppendLine("      description: Signed Expiry");
             sb.AppendLine("      required: true");
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
-            sb.AppendLine("      default: '2015-02-21'");
+            sb.AppendLine("      default: '3000-01-01T00:00:00Z'");
+
+            sb.AppendLine("    - name: sp");
+            sb.AppendLine("      description: Signed Permissions");
+            sb.AppendLine("      required: true");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+            sb.AppendLine("      default: 'raud'");
+
+            sb.AppendLine("    - name: spk");
+            sb.AppendLine("      description: Start Partition Key");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: epk");
+            sb.AppendLine("      description: End Partition Key");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: srk");
+            sb.AppendLine("      description: Start Row Key");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: erk");
+            sb.AppendLine("      description: End Row Key");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
 
             sb.AppendLine("    - name: si");
-            sb.AppendLine("      description: Access Policy Name");
-            sb.AppendLine("      required: true");
+            sb.AppendLine("      description: Signed Identifier");
+            sb.AppendLine("      required: false");
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
-            sb.AppendLine("      default: 'FullAccess'");
+
+            sb.AppendLine("    - name: sip");
+            sb.AppendLine("      description: Signed IP Address Range");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: spr");
+            sb.AppendLine("      description: Signed Protocol");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
             sb.AppendLine("    - name: sig");
             sb.AppendLine("      description: Signature");
             sb.AppendLine("      required: true");
