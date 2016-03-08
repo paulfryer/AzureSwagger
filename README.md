@@ -12,3 +12,5 @@ https://{serviceName}.blob.core.windows.net/api/table.yaml
 You can then reference the YAML document from the Swagger Editor to generate clients. Choose File > Import URL... and reference your YAML URL that was just created.
 
 http://editor.swagger.io
+
+A CORS policy will be added to enable any origins set in the app.config, the default value allows http://editor.swagger.org so you can immediately test from the swagger editor.
