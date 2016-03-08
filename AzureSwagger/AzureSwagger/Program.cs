@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Auth;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace AzureSwagger
@@ -386,7 +388,7 @@ namespace AzureSwagger
                     storageCredentials);
 
             var tables = tableClient.ListTables();
-
+            
             foreach (var table in tables)
             {
                 TableDescriptions.Add(table.Name, new Dictionary<string, EdmType>());
@@ -400,6 +402,24 @@ namespace AzureSwagger
                             var edmType = property.Value.PropertyType;
                             TableDescriptions[table.Name].Add(property.Key, edmType);
                         }
+            }
+
+            var allowedOrigins = ConfigurationManager.AppSettings["AllowedOrigins"];
+            if (!string.IsNullOrEmpty(allowedOrigins))
+            {
+                var tableServiceProperties = tableClient.GetServiceProperties();
+                if (!tableServiceProperties.Cors.CorsRules.Any(c => c.AllowedOrigins.Contains(allowedOrigins)))
+                {
+                    tableServiceProperties.Cors.CorsRules.Add(new CorsRule
+                    {
+                        AllowedHeaders = new []{"*"},
+                        AllowedMethods = CorsHttpMethods.Get | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Put,
+                        ExposedHeaders = new []{"*"},
+                        AllowedOrigins = allowedOrigins.Split(','),
+                        MaxAgeInSeconds = 60
+                    });
+                    tableClient.SetServiceProperties(tableServiceProperties);
+                }
             }
         }
     }
