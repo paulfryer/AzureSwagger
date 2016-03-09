@@ -105,7 +105,8 @@ namespace AzureSwagger
             {
                 sb.AppendLine(" /" + queue.Name + "/messages:");
                 sb.AppendLine("  get:");
-                sb.AppendLine("   summary: Retrieves one or more messages from the front of the " + queue.Name + " queue.");
+                sb.AppendLine("   summary: Retrieves one or more messages from the front of the " + queue.Name +
+                              " queue.");
                 AddQueueParameters(queue.Name, sb);
                 sb.AppendLine("    - name: numofmessages");
                 sb.AppendLine("      description: Number of Messages");
@@ -131,7 +132,13 @@ namespace AzureSwagger
                 sb.AppendLine("   responses:");
                 sb.AppendLine("     200:");
                 sb.AppendLine("       description: Success");
-                // TODO: Define message schema...
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/QueueMessagesList'");
+                sb.AppendLine("     403:");
+                sb.AppendLine("       description: Authorization Failed");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/ErrorMessage'");
+
 
                 sb.AppendLine("  post:");
                 sb.AppendLine("   summary: Adds a new message to the back of the message the " + queue.Name + " queue.");
@@ -142,7 +149,7 @@ namespace AzureSwagger
                 sb.AppendLine("      required: false");
                 sb.AppendLine("      in: query");
                 sb.AppendLine("      type: integer");
-                sb.AppendLine("      default: 30");
+                sb.AppendLine("      default: 0");
 
                 sb.AppendLine("    - name: messagettl");
                 sb.AppendLine("      description: Message Get Time to Live");
@@ -155,42 +162,58 @@ namespace AzureSwagger
                 sb.AppendLine("      description: Body");
                 sb.AppendLine("      required: true");
                 sb.AppendLine("      in: body");
-                sb.AppendLine("      type: string");
-                sb.AppendLine("      default: '<QueueMessage><MessageText>message-content</MessageText></QueueMessage>'");
-                //sb.AppendLine("      schema:");
+                sb.AppendLine("      schema:");
+                sb.AppendLine("        type: string");
+                sb.AppendLine("        default: '<QueueMessage><MessageText>message-content</MessageText></QueueMessage>'");
                 //sb.AppendLine("        $ref: '#/definitions/QueueMessage'");
 
                 sb.AppendLine("   responses:");
-                sb.AppendLine("     200:");
-                sb.AppendLine("       description: Success");
+                sb.AppendLine("     201:");
+                sb.AppendLine("       description: Created");
                 sb.AppendLine("     400:");
                 sb.AppendLine("       description: Bad Request");
                 sb.AppendLine("       schema:");
                 sb.AppendLine("         $ref: '#/definitions/ErrorMessage'");
-
-
-                sb.AppendLine("definitions:");
-                sb.AppendLine("  QueueMessage:");
-                sb.AppendLine("    type: object");
-                sb.AppendLine("    properties:");
-                sb.AppendLine("      MessageText:");
-                sb.AppendLine("        type: string");
-                sb.AppendLine("  ErrorMessage:");
-                sb.AppendLine("    type: object");
-                sb.AppendLine("    properties:");
-                sb.AppendLine("      Code:");
-                sb.AppendLine("        type: string");
-                sb.AppendLine("      Message:");
-                sb.AppendLine("        type: string");
-                sb.AppendLine("      LineNumber:");
-                sb.AppendLine("        type: integer");
-                sb.AppendLine("      LinePosition:");
-                sb.AppendLine("        type: integer");
-                sb.AppendLine("      Reason:");
-                sb.AppendLine("        type: string");
-
             }
 
+
+            sb.AppendLine("definitions:");
+            sb.AppendLine("  QueueMessagesList:");
+            sb.AppendLine("    type: array");
+            sb.AppendLine("    items:");
+            sb.AppendLine("      $ref: '#/definitions/QueueMessage'");
+            sb.AppendLine("  QueueMessage:");
+            sb.AppendLine("    type: object");
+            sb.AppendLine("    properties:");
+            sb.AppendLine("      MessageText:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      MessageId:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      PopReceipt:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      MessageText:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      ExpirationTime:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      DequeueCount:");
+            sb.AppendLine("        type: integer");
+            sb.AppendLine("      TimeNextVisible:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      InsertionTime:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("  ErrorMessage:");
+            sb.AppendLine("    type: object");
+            sb.AppendLine("    properties:");
+            sb.AppendLine("      Code:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      Message:");
+            sb.AppendLine("        type: string");
+            sb.AppendLine("      LineNumber:");
+            sb.AppendLine("        type: integer");
+            sb.AppendLine("      LinePosition:");
+            sb.AppendLine("        type: integer");
+            sb.AppendLine("      Reason:");
+            sb.AppendLine("        type: string");
 
             return sb.ToString();
         }
@@ -577,10 +600,10 @@ namespace AzureSwagger
                 {
                     queueServiceProperties.Cors.CorsRules.Add(new CorsRule
                     {
-                        AllowedHeaders = new[] { "*" },
+                        AllowedHeaders = new[] {"*"},
                         AllowedMethods =
                             CorsHttpMethods.Get | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Put,
-                        ExposedHeaders = new[] { "*" },
+                        ExposedHeaders = new[] {"*"},
                         AllowedOrigins = allowedOrigins.Split(','),
                         MaxAgeInSeconds = 60
                     });
