@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
-using System.Reflection.Emit;
 using System.Text;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Auth;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Queue;
 using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -18,6 +18,7 @@ namespace AzureSwagger
 
         private static CloudTableClient tableClient;
         private static CloudBlobClient blobClient;
+        private static CloudQueueClient queueClient;
 
         private static readonly Dictionary<string, Dictionary<string, EdmType>> TableDescriptions =
             new Dictionary<string, Dictionary<string, EdmType>>();
@@ -51,7 +52,7 @@ namespace AzureSwagger
         {
             Initialize();
             SaveYaml("table.yaml", BuildTableYaml());
-
+            SaveYaml("queue.yaml", BuildQueueYaml());
             Console.ReadKey();
         }
 
@@ -72,6 +73,126 @@ namespace AzureSwagger
             blob.UploadText(yaml);
 
             Console.WriteLine(blob.Uri.AbsoluteUri);
+        }
+
+        private static string BuildQueueYaml()
+        {
+            var queues = queueClient.ListQueues();
+
+            var sb = new StringBuilder();
+            var infoTitle = storageAccountName + " Queue API";
+            var infoDescription = "API for the " + storageAccountName + " queue service";
+            const string infoVersion = "1.0.0";
+            var host = queueClient.StorageUri.PrimaryUri.Host;
+
+            sb.AppendLine("swagger: '2.0'");
+            sb.AppendLine("info:");
+            sb.AppendLine(" title: " + infoTitle);
+            sb.AppendLine(" description: " + infoDescription);
+            sb.AppendLine(" version: \"" + infoVersion + "\"");
+            sb.AppendLine("host: " + host);
+            sb.AppendLine("schemes:");
+            sb.AppendLine(" - https");
+            sb.AppendLine(" - http");
+            sb.AppendLine("produces:");
+            sb.AppendLine(" - application/xml");
+            sb.AppendLine("consumes:");
+            sb.AppendLine(" - application/xml");
+            sb.AppendLine("paths:");
+
+
+            foreach (var queue in queues)
+            {
+                sb.AppendLine(" /" + queue.Name + "/messages:");
+                sb.AppendLine("  get:");
+                sb.AppendLine("   summary: Retrieves one or more messages from the front of the " + queue.Name + " queue.");
+                AddQueueParameters(queue.Name, sb);
+                sb.AppendLine("    - name: numofmessages");
+                sb.AppendLine("      description: Number of Messages");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: integer");
+                sb.AppendLine("      default: 1");
+
+                sb.AppendLine("    - name: visibilitytimeout");
+                sb.AppendLine("      description: Visibility Timeout");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: integer");
+                sb.AppendLine("      default: 30");
+
+                sb.AppendLine("    - name: peekonly");
+                sb.AppendLine("      description: Peek Only");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: boolean");
+                sb.AppendLine("      default: false");
+
+                sb.AppendLine("   responses:");
+                sb.AppendLine("     200:");
+                sb.AppendLine("       description: Success");
+                // TODO: Define message schema...
+
+                sb.AppendLine("  post:");
+                sb.AppendLine("   summary: Adds a new message to the back of the message the " + queue.Name + " queue.");
+                AddQueueParameters(queue.Name, sb);
+
+                sb.AppendLine("    - name: visibilitytimeout");
+                sb.AppendLine("      description: Visibility Timeout");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: integer");
+                sb.AppendLine("      default: 30");
+
+                sb.AppendLine("    - name: messagettl");
+                sb.AppendLine("      description: Message Get Time to Live");
+                sb.AppendLine("      required: false");
+                sb.AppendLine("      in: query");
+                sb.AppendLine("      type: integer");
+                sb.AppendLine("      default: 604800");
+
+                sb.AppendLine("    - name: body");
+                sb.AppendLine("      description: Body");
+                sb.AppendLine("      required: true");
+                sb.AppendLine("      in: body");
+                sb.AppendLine("      type: string");
+                sb.AppendLine("      default: '<QueueMessage><MessageText>message-content</MessageText></QueueMessage>'");
+                //sb.AppendLine("      schema:");
+                //sb.AppendLine("        $ref: '#/definitions/QueueMessage'");
+
+                sb.AppendLine("   responses:");
+                sb.AppendLine("     200:");
+                sb.AppendLine("       description: Success");
+                sb.AppendLine("     400:");
+                sb.AppendLine("       description: Bad Request");
+                sb.AppendLine("       schema:");
+                sb.AppendLine("         $ref: '#/definitions/ErrorMessage'");
+
+
+                sb.AppendLine("definitions:");
+                sb.AppendLine("  QueueMessage:");
+                sb.AppendLine("    type: object");
+                sb.AppendLine("    properties:");
+                sb.AppendLine("      MessageText:");
+                sb.AppendLine("        type: string");
+                sb.AppendLine("  ErrorMessage:");
+                sb.AppendLine("    type: object");
+                sb.AppendLine("    properties:");
+                sb.AppendLine("      Code:");
+                sb.AppendLine("        type: string");
+                sb.AppendLine("      Message:");
+                sb.AppendLine("        type: string");
+                sb.AppendLine("      LineNumber:");
+                sb.AppendLine("        type: integer");
+                sb.AppendLine("      LinePosition:");
+                sb.AppendLine("        type: integer");
+                sb.AppendLine("      Reason:");
+                sb.AppendLine("        type: string");
+
+            }
+
+
+            return sb.ToString();
         }
 
         private static string BuildTableYaml()
@@ -286,26 +407,19 @@ namespace AzureSwagger
             return sb.ToString();
         }
 
-        private static void AddTableParameters(string tableName, StringBuilder sb)
+        private static void AddCommonSasParamters(string tag, StringBuilder sb, string defaultSignedPermissions)
         {
             sb.AppendLine("   tags:");
-            sb.AppendLine("    - " + tableName);
+            sb.AppendLine("    - " + tag);
 
             sb.AppendLine("   parameters:");
-            
+
             sb.AppendLine("    - name: sv");
             sb.AppendLine("      description: Signed Version");
             sb.AppendLine("      required: true");
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
             sb.AppendLine("      default: '2015-02-21'");
-
-            sb.AppendLine("    - name: tn");
-            sb.AppendLine("      description: Table Name");
-            sb.AppendLine("      required: true");
-            sb.AppendLine("      in: query");
-            sb.AppendLine("      type: string");
-            sb.AppendLine("      default: " + tableName);
 
             sb.AppendLine("    - name: st");
             sb.AppendLine("      description: Signed Start");
@@ -321,12 +435,60 @@ namespace AzureSwagger
             sb.AppendLine("      type: string");
             sb.AppendLine("      default: '3000-01-01T00:00:00Z'");
 
+            sb.AppendLine("    - name: si");
+            sb.AppendLine("      description: Signed Identifier");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: sip");
+            sb.AppendLine("      description: Signed IP Address Range");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
+            sb.AppendLine("    - name: spr");
+            sb.AppendLine("      description: Signed Protocol");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+
             sb.AppendLine("    - name: sp");
             sb.AppendLine("      description: Signed Permissions");
             sb.AppendLine("      required: true");
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
-            sb.AppendLine("      default: 'raud'");
+            sb.AppendLine("      default: '" + defaultSignedPermissions + "'");
+
+            sb.AppendLine("    - name: sig");
+            sb.AppendLine("      description: Signature");
+            sb.AppendLine("      required: true");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+        }
+
+        private static void AddQueueParameters(string queueName, StringBuilder sb)
+        {
+            AddCommonSasParamters(queueName, sb, "raup");
+
+            sb.AppendLine("    - name: timeout");
+            sb.AppendLine("      description: Timeout");
+            sb.AppendLine("      required: false");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: integer");
+            sb.AppendLine("      default: 30");
+        }
+
+        private static void AddTableParameters(string tableName, StringBuilder sb)
+        {
+            AddCommonSasParamters(tableName, sb, "raud");
+
+            sb.AppendLine("    - name: tn");
+            sb.AppendLine("      description: Table Name");
+            sb.AppendLine("      required: true");
+            sb.AppendLine("      in: query");
+            sb.AppendLine("      type: string");
+            sb.AppendLine("      default: " + tableName);
 
             sb.AppendLine("    - name: spk");
             sb.AppendLine("      description: Start Partition Key");
@@ -351,30 +513,6 @@ namespace AzureSwagger
             sb.AppendLine("      required: false");
             sb.AppendLine("      in: query");
             sb.AppendLine("      type: string");
-
-            sb.AppendLine("    - name: si");
-            sb.AppendLine("      description: Signed Identifier");
-            sb.AppendLine("      required: false");
-            sb.AppendLine("      in: query");
-            sb.AppendLine("      type: string");
-
-            sb.AppendLine("    - name: sip");
-            sb.AppendLine("      description: Signed IP Address Range");
-            sb.AppendLine("      required: false");
-            sb.AppendLine("      in: query");
-            sb.AppendLine("      type: string");
-
-            sb.AppendLine("    - name: spr");
-            sb.AppendLine("      description: Signed Protocol");
-            sb.AppendLine("      required: false");
-            sb.AppendLine("      in: query");
-            sb.AppendLine("      type: string");
-
-            sb.AppendLine("    - name: sig");
-            sb.AppendLine("      description: Signature");
-            sb.AppendLine("      required: true");
-            sb.AppendLine("      in: query");
-            sb.AppendLine("      type: string");
         }
 
         private static void Initialize()
@@ -393,8 +531,13 @@ namespace AzureSwagger
                     new StorageUri(new Uri(string.Format(StorageUriPattern, storageAccountName, "blob"))),
                     storageCredentials);
 
+            queueClient =
+                new CloudQueueClient(
+                    new StorageUri(new Uri(string.Format(StorageUriPattern, storageAccountName, "queue"))),
+                    storageCredentials);
+
             var tables = tableClient.ListTables();
-            
+
             foreach (var table in tables)
             {
                 TableDescriptions.Add(table.Name, new Dictionary<string, EdmType>());
@@ -411,6 +554,7 @@ namespace AzureSwagger
             }
 
             var allowedOrigins = ConfigurationManager.AppSettings["AllowedOrigins"];
+
             if (!string.IsNullOrEmpty(allowedOrigins))
             {
                 var tableServiceProperties = tableClient.GetServiceProperties();
@@ -418,13 +562,29 @@ namespace AzureSwagger
                 {
                     tableServiceProperties.Cors.CorsRules.Add(new CorsRule
                     {
-                        AllowedHeaders = new []{"*"},
-                        AllowedMethods = CorsHttpMethods.Get | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Put,
-                        ExposedHeaders = new []{"*"},
+                        AllowedHeaders = new[] {"*"},
+                        AllowedMethods =
+                            CorsHttpMethods.Get | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Put,
+                        ExposedHeaders = new[] {"*"},
                         AllowedOrigins = allowedOrigins.Split(','),
                         MaxAgeInSeconds = 60
                     });
                     tableClient.SetServiceProperties(tableServiceProperties);
+                }
+
+                var queueServiceProperties = queueClient.GetServiceProperties();
+                if (!queueServiceProperties.Cors.CorsRules.Any(c => c.AllowedOrigins.Contains(allowedOrigins)))
+                {
+                    queueServiceProperties.Cors.CorsRules.Add(new CorsRule
+                    {
+                        AllowedHeaders = new[] { "*" },
+                        AllowedMethods =
+                            CorsHttpMethods.Get | CorsHttpMethods.Post | CorsHttpMethods.Delete | CorsHttpMethods.Put,
+                        ExposedHeaders = new[] { "*" },
+                        AllowedOrigins = allowedOrigins.Split(','),
+                        MaxAgeInSeconds = 60
+                    });
+                    queueClient.SetServiceProperties(queueServiceProperties);
                 }
             }
         }
